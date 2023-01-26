@@ -6,7 +6,8 @@ RUN apt-get update && apt-get install -y \
   libssl-dev \
   ca-certificates \
   fuse \
-  git
+  git \
+  jq
 
 ENV SRC_DIR /kubo
 ENV GO111MODULE on
@@ -74,6 +75,11 @@ COPY --from=0 /lib/*-linux-gnu*/libdl.so.2 /lib/
 # Copy over SSL libraries.
 COPY --from=0 /usr/lib/*-linux-gnu*/libssl.so* /usr/lib/
 COPY --from=0 /usr/lib/*-linux-gnu*/libcrypto.so* /usr/lib/
+
+# COPY jq
+COPY --from=0 /usr/bin/jq /usr/bin/
+COPY --from=0 /usr/lib/*-linux-gnu*/libjq.so* /usr/lib/
+COPY --from=0 /usr/lib/*-linux-gnu*/libonig.so* /usr/lib/
 
 # Swarm TCP; should be exposed to the public
 EXPOSE 4001
