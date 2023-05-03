@@ -50,7 +50,7 @@ RUN set -eux; \
   && chmod +x tini
 
 # Now comes the actual target image, which aims to be as small as possible.
-FROM busybox:1.31.1-glibc
+FROM busybox:1.36.0-glibc
 LABEL maintainer="Steven Allen <steven@stebalien.com>"
 
 # Get the ipfs binary, entrypoint script, and TLS CAs from the build container.
@@ -80,6 +80,9 @@ COPY --from=0 /usr/lib/*-linux-gnu*/libcrypto.so* /usr/lib/
 COPY --from=0 /usr/bin/jq /usr/bin/
 COPY --from=0 /usr/lib/*-linux-gnu*/libjq.so* /usr/lib/
 COPY --from=0 /usr/lib/*-linux-gnu*/libonig.so* /usr/lib/
+
+# TEST jq
+RUN echo "{}" | jq -c >/dev/null
 
 # Swarm TCP; should be exposed to the public
 EXPOSE 4001
