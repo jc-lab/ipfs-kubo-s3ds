@@ -1,5 +1,5 @@
-FROM golang:1.19.1-buster
-LABEL maintainer="Steven Allen <steven@stebalien.com>"
+FROM golang:1.20.4-bullseye
+LABEL maintainer="Joseph Lee <joseph@jc-lab.net>"
 
 # Install deps
 RUN apt-get update && apt-get install -y \
@@ -14,7 +14,7 @@ ENV GO111MODULE on
 
 RUN git clone https://github.com/ipfs/kubo.git $SRC_DIR \
     && cd $SRC_DIR \
-    && git checkout -f 675037721fcef91cc1887257b647f0ba06a3f620 # v0.18.0
+    && git checkout -f afb27ca17433bbf278fc7939c3d58ec2e8804e92 # v0.19.2
 RUN cd $SRC_DIR \
   && go mod download \
   && go get github.com/ipfs/go-ds-s3/plugin@latest \
