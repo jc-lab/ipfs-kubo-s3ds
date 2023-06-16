@@ -1,6 +1,9 @@
 FROM golang:1.20.4-bullseye
 LABEL maintainer="Joseph Lee <joseph@jc-lab.net>"
 
+# v0.20.0
+ARG KUBO_COMMIT=b8c47250026a318d9b1496d7dcea6284355db140
+
 # Install deps
 RUN apt-get update && apt-get install -y \
   libssl-dev \
@@ -14,7 +17,7 @@ ENV GO111MODULE on
 
 RUN git clone https://github.com/ipfs/kubo.git $SRC_DIR \
     && cd $SRC_DIR \
-    && git checkout -f afb27ca17433bbf278fc7939c3d58ec2e8804e92 # v0.19.2
+    && git checkout -f ${KUBO_COMMIT}
 RUN cd $SRC_DIR \
   && go mod download \
   && go get github.com/ipfs/go-ds-s3/plugin@latest \
