@@ -1,8 +1,8 @@
-FROM golang:1.20.4-bullseye
+FROM golang:1.21-bullseye
 LABEL maintainer="Joseph Lee <joseph@jc-lab.net>"
 
-# v0.20.0
-ARG KUBO_COMMIT=b8c47250026a318d9b1496d7dcea6284355db140
+# v0.24.0
+ARG KUBO_COMMIT=e70db6531a88ee5e2ea36981281503848ceb85d3
 
 # Install deps
 RUN apt-get update && apt-get install -y \
@@ -20,7 +20,7 @@ RUN git clone https://github.com/ipfs/kubo.git $SRC_DIR \
     && git checkout -f ${KUBO_COMMIT}
 RUN cd $SRC_DIR \
   && go mod download \
-  && go get github.com/ipfs/go-ds-s3/plugin@latest \
+  && go get github.com/ipfs/go-ds-s3/plugin@v0.9.0 \
   && printf "\ns3ds github.com/ipfs/go-ds-s3/plugin 0\n" >> plugin/loader/preload_list
 
 # Preload an in-tree but disabled-by-default plugin by adding it to the IPFS_PLUGINS variable
