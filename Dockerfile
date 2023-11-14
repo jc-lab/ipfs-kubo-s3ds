@@ -1,19 +1,19 @@
-FROM golang:1.21-bullseye
+FROM golang:1.21-bullseye AS builder
 LABEL maintainer="Joseph Lee <joseph@jc-lab.net>"
-
-# v0.24.0
-ARG KUBO_COMMIT=e70db6531a88ee5e2ea36981281503848ceb85d3
 
 # Install deps
 RUN apt-get update && apt-get install -y \
   libssl-dev \
   ca-certificates \
   fuse \
-  git \
-  jq
+  git
+
+ARG TARGETOS TARGETARCH
 
 ENV SRC_DIR /kubo
-ENV GO111MODULE on
+
+# v0.24.0
+ARG KUBO_COMMIT=e70db6531a88ee5e2ea36981281503848ceb85d3
 
 RUN git clone https://github.com/ipfs/kubo.git $SRC_DIR \
     && cd $SRC_DIR \
@@ -27,65 +27,66 @@ RUN cd $SRC_DIR \
 # e.g. docker build --build-arg IPFS_PLUGINS="foo bar baz"
 ARG IPFS_PLUGINS
 
+# Allow for other targets to be built, e.g.: docker build --build-arg MAKE_TARGET="nofuse"
+ARG MAKE_TARGET=build
+
 # Build the thing.
 # Also: fix getting HEAD commit hash via git rev-parse.
 RUN cd $SRC_DIR \
   && mkdir -p .git/objects \
-  && GOFLAGS=-buildvcs=false make build GOTAGS=openssl IPFS_PLUGINS=$IPFS_PLUGINS
+  && GOOS=$TARGETOS GOARCH=$TARGETARCH GOFLAGS=-buildvcs=false make ${MAKE_TARGET} IPFS_PLUGINS=$IPFS_PLUGINS
 
-# Get su-exec, a very minimal tool for dropping privileges,
-# and tini, a very minimal init daemon for containers
-ENV SUEXEC_VERSION v0.2
-ENV TINI_VERSION v0.19.0
+# Using Debian Buster because the version of busybox we're using is based on it
+# and we want to make sure the libraries we're using are compatible. That's also
+# why we're running this for the target platform.
+FROM debian:bullseye-slim AS utilities
 RUN set -eux; \
-    dpkgArch="$(dpkg --print-architecture)"; \
-    case "${dpkgArch##*-}" in \
-        "amd64" | "armhf" | "arm64") tiniArch="tini-static-$dpkgArch" ;;\
-        *) echo >&2 "unsupported architecture: ${dpkgArch}"; exit 1 ;; \
-    esac; \
-  cd /tmp \
-  && git clone https://github.com/ncopa/su-exec.git \
-  && cd su-exec \
-  && git checkout -q $SUEXEC_VERSION \
-  && make su-exec-static \
-  && cd /tmp \
-  && wget -q -O tini https://github.com/krallin/tini/releases/download/$TINI_VERSION/$tiniArch \
-  && chmod +x tini
+	apt-get update; \
+	apt-get install -y \
+		tini \
+    # Using gosu (~2MB) instead of su-exec (~20KB) because it's easier to
+    # install on Debian. Useful links:
+    # - https://github.com/ncopa/su-exec#why-reinvent-gosu
+    # - https://github.com/tianon/gosu/issues/52#issuecomment-441946745
+		gosu \
+    # This installs fusermount which we later copy over to the target image.
+    fuse \
+    ca-certificates \
+    jq \
+	; \
+	rm -rf /var/lib/apt/lists/*
 
 # Now comes the actual target image, which aims to be as small as possible.
-FROM busybox:1.36.0-glibc
-LABEL maintainer="Steven Allen <steven@stebalien.com>"
+FROM busybox:stable-glibc
 
 # Get the ipfs binary, entrypoint script, and TLS CAs from the build container.
 ENV SRC_DIR /kubo
-COPY --from=0 $SRC_DIR/cmd/ipfs/ipfs /usr/local/bin/ipfs
-COPY --from=0 $SRC_DIR/bin/container_daemon /usr/local/bin/start_ipfs
-COPY --from=0 $SRC_DIR/bin/container_init_run /usr/local/bin/container_init_run
-COPY --from=0 /tmp/su-exec/su-exec-static /sbin/su-exec
-COPY --from=0 /tmp/tini /sbin/tini
-COPY --from=0 /bin/fusermount /usr/local/bin/fusermount
-COPY --from=0 /etc/ssl/certs /etc/ssl/certs
+COPY --from=utilities /usr/sbin/gosu /sbin/gosu
+COPY --from=utilities /usr/bin/tini /sbin/tini
+COPY --from=utilities /bin/fusermount /usr/local/bin/fusermount
+COPY --from=utilities /etc/ssl/certs /etc/ssl/certs
+COPY --from=builder $SRC_DIR/cmd/ipfs/ipfs /usr/local/bin/ipfs
+COPY --from=builder $SRC_DIR/bin/container_daemon /usr/local/bin/start_ipfs
+COPY --from=builder $SRC_DIR/bin/container_init_run /usr/local/bin/container_init_run
+COPY --from=builder /usr/bin/ldd /bin/bash /usr/bin/
+
+# This shared lib (part of glibc) doesn't seem to be included with busybox.
+COPY --from=builder /lib/*-linux-gnu*/libdl.so.2 /lib/
+
+# Copy over SSL libraries.
+COPY --from=builder /usr/lib/*-linux-gnu*/libssl.so* /usr/lib/
+COPY --from=builder /usr/lib/*-linux-gnu*/libcrypto.so* /usr/lib/
+
+# COPY jq
+COPY --from=utilities /usr/bin/jq /usr/bin/
+COPY --from=utilities /usr/lib/*-linux-gnu*/libjq.so* /usr/lib/
+COPY --from=utilities /usr/lib/*-linux-gnu*/libonig.so* /usr/lib/
 
 # Add suid bit on fusermount so it will run properly
 RUN chmod 4755 /usr/local/bin/fusermount
 
 # Fix permissions on start_ipfs (ignore the build machine's permissions)
 RUN chmod 0755 /usr/local/bin/start_ipfs
-
-# This shared lib (part of glibc) doesn't seem to be included with busybox.
-COPY --from=0 /lib/*-linux-gnu*/libdl.so.2 /lib/
-
-# Copy over SSL libraries.
-COPY --from=0 /usr/lib/*-linux-gnu*/libssl.so* /usr/lib/
-COPY --from=0 /usr/lib/*-linux-gnu*/libcrypto.so* /usr/lib/
-
-# COPY jq
-COPY --from=0 /usr/bin/jq /usr/bin/
-COPY --from=0 /usr/lib/*-linux-gnu*/libjq.so* /usr/lib/
-COPY --from=0 /usr/lib/*-linux-gnu*/libonig.so* /usr/lib/
-
-# TEST jq
-RUN echo "{}" | jq -c >/dev/null
 
 # Swarm TCP; should be exposed to the public
 EXPOSE 4001
@@ -128,7 +129,7 @@ ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/start_ipfs"]
 # Healthcheck for the container
 # QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn is the CID of empty folder
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD ipfs dag stat /ipfs/QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn || exit 1
+  CMD ipfs --api=/ip4/127.0.0.1/tcp/5001 dag stat /ipfs/QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn || exit 1
 
 # Execute the daemon subcommand by default
 CMD ["daemon", "--migrate=true", "--agent-version-suffix=docker"]
