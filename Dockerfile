@@ -12,15 +12,15 @@ ARG TARGETOS TARGETARCH
 
 ENV SRC_DIR /kubo
 
-# v0.24.0
-ARG KUBO_COMMIT=e70db6531a88ee5e2ea36981281503848ceb85d3
+# v0.26.0
+ARG KUBO_COMMIT=096f510ab206c119693f145bc3331eeb33a69e07
 
 RUN git clone https://github.com/ipfs/kubo.git $SRC_DIR \
     && cd $SRC_DIR \
     && git checkout -f ${KUBO_COMMIT}
 RUN cd $SRC_DIR \
   && go mod download \
-  && go get github.com/ipfs/go-ds-s3/plugin@v0.9.0 \
+  && go get github.com/ipfs/go-ds-s3@v0.11.0 \
   && printf "\ns3ds github.com/ipfs/go-ds-s3/plugin 0\n" >> plugin/loader/preload_list
 
 # Preload an in-tree but disabled-by-default plugin by adding it to the IPFS_PLUGINS variable
