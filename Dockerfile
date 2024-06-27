@@ -1,4 +1,4 @@
-FROM golang:1.21-bullseye AS builder
+FROM golang:1.22-bullseye AS builder
 LABEL maintainer="Joseph Lee <joseph@jc-lab.net>"
 
 # Install deps
@@ -12,15 +12,15 @@ ARG TARGETOS TARGETARCH
 
 ENV SRC_DIR /kubo
 
-# v0.26.0
-ARG KUBO_COMMIT=096f510ab206c119693f145bc3331eeb33a69e07
+# v0.29.0
+ARG KUBO_COMMIT=3f0947b74e3b5abbce25ac910a01de6268b7dd8e
 
 RUN git clone https://github.com/ipfs/kubo.git $SRC_DIR \
     && cd $SRC_DIR \
     && git checkout -f ${KUBO_COMMIT}
 RUN cd $SRC_DIR \
   && go mod download \
-  && go get github.com/ipfs/go-ds-s3@v0.11.0 \
+  && go get github.com/ipfs/go-ds-s3@7ef7ee4dd660697a5b0860cdccd97bcd64729b31 \
   && printf "\ns3ds github.com/ipfs/go-ds-s3/plugin 0\n" >> plugin/loader/preload_list
 
 # Preload an in-tree but disabled-by-default plugin by adding it to the IPFS_PLUGINS variable
