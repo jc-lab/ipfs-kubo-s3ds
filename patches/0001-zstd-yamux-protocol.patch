@@ -1,0 +1,63 @@
+diff --git a/core/node/libp2p/smux.go b/core/node/libp2p/smux.go
+index d52b306d8..a1b08c2d4 100644
+--- a/core/node/libp2p/smux.go
++++ b/core/node/libp2p/smux.go
+@@ -8,9 +8,11 @@ import (
+ 
+ 	"github.com/libp2p/go-libp2p"
+ 	"github.com/libp2p/go-libp2p/p2p/muxer/yamux"
++
++	zstd_yamux "github.com/jc-lab/libp2p-compressed-muxer/zstd-yamux"
+ )
+ 
+-func makeSmuxTransportOption(tptConfig config.Transports) (libp2p.Option, error) {
++func makeSmuxTransportOption(tptConfig config.Transports) ([]libp2p.Option, error) {
+ 	if prefs := os.Getenv("LIBP2P_MUX_PREFS"); prefs != "" {
+ 		return nil, fmt.Errorf("configuring muxers with LIBP2P_MUX_PREFS is no longer supported, use Swarm.Transports.Multiplexers")
+ 	}
+@@ -18,7 +20,10 @@ func makeSmuxTransportOption(tptConfig config.Transports) (libp2p.Option, error)
+ 		return nil, fmt.Errorf("running libp2p with Swarm.Transports.Multiplexers.Yamux disabled is not supported")
+ 	}
+ 
+-	return libp2p.Muxer(yamux.ID, yamux.DefaultTransport), nil
++	return []libp2p.Option{
++		libp2p.Muxer(zstd_yamux.ID, zstd_yamux.DefaultTransport),
++		libp2p.Muxer(yamux.ID, yamux.DefaultTransport),
++	}, nil
+ }
+ 
+ func SmuxTransport(tptConfig config.Transports) func() (opts Libp2pOpts, err error) {
+@@ -27,7 +32,7 @@ func SmuxTransport(tptConfig config.Transports) func() (opts Libp2pOpts, err err
+ 		if err != nil {
+ 			return opts, err
+ 		}
+-		opts.Opts = append(opts.Opts, res)
++		opts.Opts = append(opts.Opts, res...)
+ 		return opts, nil
+ 	}
+ }
+diff --git a/go.mod b/go.mod
+index 866a1ecc6..dfc83bd0c 100644
+--- a/go.mod
++++ b/go.mod
+@@ -45,6 +45,7 @@ require (
+ 	github.com/jbenet/go-random v0.0.0-20190219211222-123a90aedc0c
+ 	github.com/jbenet/go-temp-err-catcher v0.1.0
+ 	github.com/jbenet/goprocess v0.1.4
++	github.com/jc-lab/libp2p-compressed-muxer v0.0.1
+ 	github.com/julienschmidt/httprouter v1.3.0
+ 	github.com/libp2p/go-doh-resolver v0.4.0
+ 	github.com/libp2p/go-libp2p v0.35.1
+diff --git a/go.sum b/go.sum
+index 52e889275..b2ef14f70 100644
+--- a/go.sum
++++ b/go.sum
+@@ -450,6 +450,8 @@ github.com/jbenet/goprocess v0.0.0-20160826012719-b497e2f366b8/go.mod h1:Ly/wlsj
+ github.com/jbenet/goprocess v0.1.3/go.mod h1:5yspPrukOVuOLORacaBi858NqyClJPQxYZlqdZVfqY4=
+ github.com/jbenet/goprocess v0.1.4 h1:DRGOFReOMqqDNXwW70QkacFW0YN9QnwLV0Vqk+3oU0o=
+ github.com/jbenet/goprocess v0.1.4/go.mod h1:5yspPrukOVuOLORacaBi858NqyClJPQxYZlqdZVfqY4=
++github.com/jc-lab/libp2p-compressed-muxer v0.0.1 h1:CtjNLVEmFW3QtUYpN1DTO9h9milBg1+/L9wk3UCMnQs=
++github.com/jc-lab/libp2p-compressed-muxer v0.0.1/go.mod h1:Y+Hc0Mel7oWfug5FqSirxu8eFyonMAUgn4IyLmgm1yM=
+ github.com/jellevandenhooff/dkim v0.0.0-20150330215556-f50fe3d243e1/go.mod h1:E0B/fFc00Y+Rasa88328GlI/XbtyysCtTHZS8h7IrBU=
+ github.com/jessevdk/go-flags v0.0.0-20141203071132-1679536dcc89/go.mod h1:4FA24M0QyGHXBuZZK/XkWh8h0e1EYbRYJSGM75WSRxI=
+ github.com/jessevdk/go-flags v1.4.0/go.mod h1:4FA24M0QyGHXBuZZK/XkWh8h0e1EYbRYJSGM75WSRxI=
