@@ -6,7 +6,8 @@ RUN apt-get update && apt-get install -y \
   libssl-dev \
   ca-certificates \
   fuse \
-  git
+  git \
+  gawk patch
 
 ARG TARGETOS TARGETARCH
 
@@ -18,6 +19,14 @@ ARG KUBO_COMMIT=3f0947b74e3b5abbce25ac910a01de6268b7dd8e
 RUN git clone https://github.com/ipfs/kubo.git $SRC_DIR \
     && cd $SRC_DIR \
     && git checkout -f ${KUBO_COMMIT}
+
+COPY patches /tmp/patches
+RUN cd $SRC_DIR && \
+    LIBP2P_VERSION=$(cat go.mod | gawk 'match($0, /go-libp2p (.+)$/, out) { print out[1]}') && \
+    mkdir -p replaced-pkg && \
+    git clone -b ${LIBP2P_VERSION} https://github.com/libp2p/go-libp2p.git replaced-pkg/go-libp2p && \
+    for name in $(find /tmp/patches -type f -name "*.patch" | sort); do patch -p1 < $name; done
+
 RUN cd $SRC_DIR \
   && go mod download \
   && go get github.com/ipfs/go-ds-s3@7ef7ee4dd660697a5b0860cdccd97bcd64729b31 \
