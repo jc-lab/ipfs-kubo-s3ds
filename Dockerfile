@@ -13,8 +13,8 @@ ARG TARGETOS TARGETARCH
 
 ENV SRC_DIR /kubo
 
-# v0.29.0
-ARG KUBO_COMMIT=3f0947b74e3b5abbce25ac910a01de6268b7dd8e
+# v0.30.0
+ARG KUBO_COMMIT=846c5ccf679eeda58e626969bee8e80685be4812
 
 RUN git clone https://github.com/ipfs/kubo.git $SRC_DIR \
     && cd $SRC_DIR \
