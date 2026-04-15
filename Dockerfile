@@ -1,4 +1,4 @@
-FROM golang:1.22-bullseye AS builder
+FROM golang:1.26-bookworm AS builder
 LABEL maintainer="Joseph Lee <joseph@jc-lab.net>"
 
 # Install deps
@@ -11,25 +11,20 @@ RUN apt-get update && apt-get install -y \
 
 ARG TARGETOS TARGETARCH
 
-ENV SRC_DIR /kubo
+ENV SRC_DIR=/kubo
 
-# v0.30.0
-ARG KUBO_COMMIT=846c5ccf679eeda58e626969bee8e80685be4812
+# v0.40.1
+ARG KUBO_COMMIT=39f8a65546e19ff13991a2d2446ee59493e848fe
 
 RUN git clone https://github.com/ipfs/kubo.git $SRC_DIR \
     && cd $SRC_DIR \
     && git checkout -f ${KUBO_COMMIT}
 
 COPY patches /tmp/patches
-RUN cd $SRC_DIR && \
-    LIBP2P_VERSION=$(cat go.mod | gawk 'match($0, /go-libp2p (.+)$/, out) { print out[1]}') && \
-    mkdir -p replaced-pkg && \
-    git clone -b ${LIBP2P_VERSION} https://github.com/libp2p/go-libp2p.git replaced-pkg/go-libp2p && \
-    for name in $(find /tmp/patches -type f -name "*.patch" | sort); do patch -p1 < $name; done
 
 RUN cd $SRC_DIR \
   && go mod download \
-  && go get github.com/ipfs/go-ds-s3@7ef7ee4dd660697a5b0860cdccd97bcd64729b31 \
+  && go get github.com/ipfs/go-ds-s3@e4823540f59b71ce7969213faed4608c237a7296 \
   && printf "\ns3ds github.com/ipfs/go-ds-s3/plugin 0\n" >> plugin/loader/preload_list
 
 # Preload an in-tree but disabled-by-default plugin by adding it to the IPFS_PLUGINS variable
@@ -48,7 +43,7 @@ RUN cd $SRC_DIR \
 # Using Debian Buster because the version of busybox we're using is based on it
 # and we want to make sure the libraries we're using are compatible. That's also
 # why we're running this for the target platform.
-FROM debian:bullseye-slim AS utilities
+FROM debian:bookworm-slim AS utilities
 RUN set -eux; \
 	apt-get update; \
 	apt-get install -y \
@@ -69,7 +64,7 @@ RUN set -eux; \
 FROM busybox:stable-glibc
 
 # Get the ipfs binary, entrypoint script, and TLS CAs from the build container.
-ENV SRC_DIR /kubo
+ENV SRC_DIR=/kubo
 COPY --from=utilities /usr/sbin/gosu /sbin/gosu
 COPY --from=utilities /usr/bin/tini /sbin/tini
 COPY --from=utilities /bin/fusermount /usr/local/bin/fusermount
@@ -109,7 +104,7 @@ EXPOSE 8080
 EXPOSE 8081
 
 # Create the fs-repo directory and switch to a non-privileged user.
-ENV IPFS_PATH /data/ipfs
+ENV IPFS_PATH=/data/ipfs
 RUN mkdir -p $IPFS_PATH \
   && adduser -D -h $IPFS_PATH -u 1000 -G users ipfs \
   && chown ipfs:users $IPFS_PATH
@@ -128,7 +123,7 @@ RUN mkdir /container-init.d \
 VOLUME $IPFS_PATH
 
 # The default logging level
-ENV IPFS_LOGGING ""
+ENV IPFS_LOGGING=""
 
 # This just makes sure that:
 # 1. There's an fs-repo, and initializes one if there isn't.
